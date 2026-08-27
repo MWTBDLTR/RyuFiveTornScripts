@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         RW Bonus Labels
-// @namespace    https://github.com/MWTBDLTR/RyuFiveTornScripts
-// @version      8.0.8
-// @description  Displays RW bonus values with convenient names consistently across all Torn pages.
+// @namespace    https://github.com/MWTBDLTR/torn-scripts
+// @version      8.0.9
+// @description  Displays RW bonus labels across all relevant pages.
 // @author       RyuFive + MrChurch [3654415]
 // @match        https://www.torn.com/displaycase.php*
 // @match        https://www.torn.com/amarket.php*
@@ -11,8 +11,8 @@
 // @match        https://www.torn.com/item.php*
 // @match        https://www.torn.com/page.php?sid=ItemMarket*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=torn.com
-// @downloadURL  https://github.com/MWTBDLTR/RyuFiveTornScripts/raw/main/rw_bonus_labels.js
-// @updateURL    https://github.com/MWTBDLTR/RyuFiveTornScripts/raw/main/rw_bonus_labels.js
+// @downloadURL  https://github.com/MWTBDLTR/torn-scripts/raw/main/rw_bonus_labels.js
+// @updateURL    https://github.com/MWTBDLTR/torn-scripts/raw/main/rw_bonus_labels.js
 // @license      MIT
 // ==/UserScript==
 
@@ -119,13 +119,13 @@ let bonusColorsEnabled = true;
       filter: brightness(0.85);
     }
     .custom-badge-stack:hover .secondary-badge {
-      transform: translate(0, -115%) scale(1);
+      transform: translate(0, 115%) scale(1);
       opacity: 1;
       filter: brightness(1);
       z-index: 3;
     }
     .custom-badge-stack:hover .primary-badge {
-      transform: translateY(2px);
+      transform: translateY(-12px);
     }
     
     #armoury-weapons .loaned, #armoury-armour .loaned {
