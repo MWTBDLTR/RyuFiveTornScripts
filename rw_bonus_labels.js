@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RW Bonus Labels
 // @namespace    https://github.com/MWTBDLTR/torn-scripts
-// @version      8.3.3
+// @version      8.3.4
 // @description  Displays RW bonus values with convenient names consistently across all Torn pages.
 // @author       RyuFive + MrChurch [3654415]
 // @match        https://www.torn.com/displaycase.php*
@@ -1009,36 +1009,55 @@ function armory(triggered) {
       display.style.height = bonuses.length > 1 ? "32px" : "";
 
       bonuses.forEach((b) => {
-        const shouldAbbreviate = bonuses.length > 1 || b.name.length > 7;
-        const badge = createBonusBadge(
+        // Pre-generate both full and abbreviated text versions
+        const badge = createBonusBadge(b.value, b.name, item_name, false);
+        const abbrText = createBonusBadge(
           b.value,
           b.name,
           item_name,
-          shouldAbbreviate,
-        );
+          true,
+        ).textContent;
 
         const text = document.createElement("span");
         text.className = "custom-armory-bonus-text";
-        text.textContent = badge.textContent;
+        text.textContent = badge.textContent; // Start with the full text
 
         badge.textContent = "";
         badge.appendChild(text);
         badge.classList.add("custom-armory-bonus-badge");
-        badge.style.fontSize = bonuses.length > 1 ? "10px" : "12px";
+
+        // Start double bonuses at 11px to give full names a better chance to fit, singles at 12px
+        const defaultFontSize = bonuses.length > 1 ? "11px" : "12px";
+        badge.style.fontSize = defaultFontSize;
         badge.style.lineHeight = "1.1em";
         badge.style.transform = "";
 
         display.appendChild(badge);
 
+        let hasAbbreviated = false;
+
         const fitArmoryBadgeText = () => {
           badge.style.transform = "";
-          // +2px padding tolerance added to calculation so sub-pixel clipping doesn't force a shrink
-          while (
-            (text.scrollWidth > text.clientWidth + 2 ||
-              text.getBoundingClientRect().height > badge.clientHeight + 1) &&
-            parseFloat(badge.style.fontSize) > 10
-          ) {
+
+          const checkOverflow = () =>
+            text.scrollWidth > text.clientWidth + 2 ||
+            text.getBoundingClientRect().height > badge.clientHeight + 1;
+
+          // Attempt to shrink text to make full word fit
+          while (checkOverflow() && parseFloat(badge.style.fontSize) > 10) {
             badge.style.fontSize = `${parseFloat(badge.style.fontSize) - 0.5}px`;
+          }
+
+          // If we hit the 10px floor and it's STILL overflowing, swap to abbreviation
+          if (checkOverflow() && !hasAbbreviated) {
+            hasAbbreviated = true;
+            text.textContent = abbrText;
+
+            // Reset to default font size and try shrinking again with the much shorter text
+            badge.style.fontSize = defaultFontSize;
+            while (checkOverflow() && parseFloat(badge.style.fontSize) > 10) {
+              badge.style.fontSize = `${parseFloat(badge.style.fontSize) - 0.5}px`;
+            }
           }
         };
 
