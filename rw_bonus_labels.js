@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RW Bonus Labels
 // @namespace    https://github.com/MWTBDLTR/torn-scripts
-// @version      8.3.0
+// @version      8.3.1
 // @description  Displays RW bonus values with convenient names consistently across all Torn pages.
 // @author       RyuFive + MrChurch [3654415]
 // @match        https://www.torn.com/displaycase.php*
@@ -1009,8 +1009,14 @@ function armory(triggered) {
       display.style.height = bonuses.length > 1 ? "32px" : "";
 
       bonuses.forEach((b) => {
-        // Create standard badge, unabbreviated so text scales naturally to cell width
-        const badge = createBonusBadge(b.value, b.name, item_name, false);
+        // Enforce abbreviation if it's a double bonus OR if it's a single bonus longer than 7 characters
+        const shouldAbbreviate = bonuses.length > 1 || b.name.length > 7;
+        const badge = createBonusBadge(
+          b.value,
+          b.name,
+          item_name,
+          shouldAbbreviate,
+        );
 
         const text = document.createElement("span");
         text.className = "custom-armory-bonus-text";
@@ -1019,7 +1025,8 @@ function armory(triggered) {
         badge.textContent = "";
         badge.appendChild(text);
         badge.classList.add("custom-armory-bonus-badge");
-        badge.style.fontSize = bonuses.length > 1 ? "8px" : "10px";
+        // Initializing the badge slightly larger to give it room to shrink elegantly
+        badge.style.fontSize = bonuses.length > 1 ? "10px" : "12px";
         badge.style.lineHeight = "1.1em";
         badge.style.transform = "";
 
@@ -1030,7 +1037,7 @@ function armory(triggered) {
           while (
             (text.scrollWidth > text.clientWidth ||
               text.getBoundingClientRect().height > badge.clientHeight) &&
-            parseFloat(badge.style.fontSize) > 7
+            parseFloat(badge.style.fontSize) > 10 // Clamped minimum to 10px to ensure readability
           ) {
             badge.style.fontSize = `${parseFloat(badge.style.fontSize) - 0.5}px`;
           }
@@ -1172,7 +1179,9 @@ function newItemMarket(triggered) {
     const desc = node.getAttribute("data-bonus-attachment-description");
     if (!name || !desc) return null;
     const value = formatNew(desc, name);
-    const badge = createBonusBadge(value, name, item_name, hasTwoBonuses);
+    // Applies abbreviation logic across dual-bonus market items and single bonus items > 7 chars
+    const shouldAbbreviate = hasTwoBonuses || name.length > 7;
+    const badge = createBonusBadge(value, name, item_name, shouldAbbreviate);
     badge.style.margin = "0";
     return badge;
   };
