@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         RW Bonus Labels
 // @namespace    https://github.com/MWTBDLTR/torn-scripts
-// @version      8.0.9
-// @description  Displays RW bonus labels across all relevant pages.
+// @version      8.1.0
+// @description  Displays RW bonus values with convenient names consistently across all Torn pages.
 // @author       RyuFive + MrChurch [3654415]
 // @match        https://www.torn.com/displaycase.php*
 // @match        https://www.torn.com/amarket.php*
@@ -18,127 +18,41 @@
 
 let bonusColorsEnabled = true;
 
+// Shared constants for optimizations
+const STATIC_BONUSES = new Set([
+  "irradiate",
+  "smash",
+  "radiation protection",
+  "dimensiokinesis",
+  "oneirokinesis",
+]);
+const UNIT_OVERRIDES = { disarm: "T", freeze: "s" };
+
 (function addCustomStyles() {
   const css = `
-    .custom-itemmarket-container {
-      display: flex !important;
-      flex-direction: column;
-      margin-top: 15px;
-      white-space: normal;
-      padding-left: 0;
-    }
-    .custom-bazaar-container {
-      float: left;
-      white-space: nowrap;
-      margin-top: 9px;
-      padding-left: 5;
-      top: 3px;
-      right: 0px;
-      display: inline-block !important;
-      position: relative;
-    }
-    .bonus-attachment-icons {
-      display: inline-table !important;
-      width: auto !important;
-      float: left !important;
-      white-space: nowrap !important;
-      padding-left: 0px !important;
-      padding-top: 3px !important;
-      position: relative !important;
-      top: -40px !important;
-      right: 0px !important;
-    }
-    .custom-bonus-label {
-      font-size: 12px;
-      padding: 1px 4px;
-      border-radius: 3px;
-      margin-left: 2px;
-      margin-bottom: 2px;
-      display: inline-block;
-      text-shadow: 0 1px 1px rgba(0,0,0,0.3);
-      pointer-events: none;
-      user-select: none;
-      white-space: nowrap;
-      max-width: 100%;
-    }
+    .custom-itemmarket-container { display: flex !important; flex-direction: column; margin-top: 15px; white-space: normal; padding-left: 0; }
+    .custom-bazaar-container { float: left; white-space: nowrap; margin-top: 9px; padding-left: 5px; top: 3px; right: 0px; display: inline-block !important; position: relative; }
+    .bonus-attachment-icons { display: inline-table !important; width: auto !important; float: left !important; white-space: nowrap !important; padding-left: 0px !important; padding-top: 3px !important; position: relative !important; top: -40px !important; right: 0px !important; }
+    .custom-bonus-label { font-size: 12px; padding: 1px 4px; border-radius: 3px; margin-left: 2px; margin-bottom: 2px; display: inline-block; text-shadow: 0 1px 1px rgba(0,0,0,0.3); pointer-events: none; user-select: none; white-space: nowrap; max-width: 100%; }
     
     /* Standardized global badge styling */
-    .custom-bonus-badge {
-      display: inline-block;
-      font-size: 11px;
-      font-weight: 600;
-      color: #fff;
-      border-radius: 6px;
-      padding: 2px 6px;
-      margin: 1px 0;
-      white-space: nowrap;
-      line-height: 1.2em;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-      border: 1px solid rgba(0,0,0,0.6);
-      vertical-align: middle;
-      transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
-      cursor: help;
-    }
+    .custom-bonus-badge { display: inline-block; font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 6px; margin: 1px 0; white-space: nowrap; line-height: 1.2em; box-shadow: 0 1px 3px rgba(0,0,0,0.2); border: 1px solid rgba(0,0,0,0.6); vertical-align: middle; transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1); cursor: help; }
     
-    .custom-bonus-badge.dark-mode {
-      text-shadow: 0 0 2px rgba(0,0,0,1),0 0 3px rgba(0,0,0,0.9),0 0 3px rgba(0,0,0,0.9);
-      color: white !important;
-    }
-    .custom-bonus-badge.light-mode {
-      text-shadow: 0 0 2px rgba(255,255,255,1),0 0 3px rgba(255,255,255,0.9),0 0 3px rgba(255,255,255,0.9);
-      color: black !important;
-    }
-    .custom-bonus-label.dark-mode {
-      background: linear-gradient(145deg, rgba(51, 51, 51, 0.7), rgba(17, 17, 17, 0.7)) !important;
-      color: white !important;
-    }
-    .custom-bonus-label.light-mode {
-      background: linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(230, 230, 230, 1)) !important;
-      color: black !important;
-    }
+    /* Pure CSS Dark Mode Handlers (No JS Required) */
+    body.dark-mode .custom-bonus-badge { text-shadow: 0 0 2px rgba(0,0,0,1),0 0 3px rgba(0,0,0,0.9),0 0 3px rgba(0,0,0,0.9); color: white !important; }
+    body:not(.dark-mode) .custom-bonus-badge { text-shadow: 0 0 2px rgba(255,255,255,1),0 0 3px rgba(255,255,255,0.9),0 0 3px rgba(255,255,255,0.9); color: black !important; }
+    body.dark-mode .custom-bonus-label { background: linear-gradient(145deg, rgba(51, 51, 51, 0.7), rgba(17, 17, 17, 0.7)) !important; color: white !important; }
+    body:not(.dark-mode) .custom-bonus-label { background: linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(230, 230, 230, 1)) !important; color: black !important; }
     
     /* Dynamic Hover Stack for Item Market */
-    .custom-badge-stack {
-      position: relative;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 22px;
-      width: 100%;
-      margin-bottom: 4px;
-    }
-    .custom-badge-stack .primary-badge {
-      position: relative;
-      z-index: 2;
-    }
-    .custom-badge-stack .secondary-badge {
-      position: absolute;
-      z-index: 1;
-      transform: translate(5px, 5px) scale(0.9);
-      opacity: 0.85;
-      filter: brightness(0.85);
-    }
-    .custom-badge-stack:hover .secondary-badge {
-      transform: translate(0, 115%) scale(1);
-      opacity: 1;
-      filter: brightness(1);
-      z-index: 3;
-    }
-    .custom-badge-stack:hover .primary-badge {
-      transform: translateY(-12px);
-    }
+    .custom-badge-stack { position: relative; display: flex; justify-content: center; align-items: center; height: 22px; width: 100%; margin-bottom: 4px; }
+    .custom-badge-stack .primary-badge { position: relative; z-index: 2; }
+    .custom-badge-stack .secondary-badge { position: absolute; z-index: 1; transform: translate(5px, 5px) scale(0.9); opacity: 0.85; filter: brightness(0.85); }
+    .custom-badge-stack:hover .secondary-badge { transform: translate(0, 115%) scale(1); opacity: 1; filter: brightness(1); z-index: 3; }
+    .custom-badge-stack:hover .primary-badge { transform: translateY(-12px); }
     
-    #armoury-weapons .loaned, #armoury-armour .loaned {
-      width: 75px !important;
-      overflow: visible !important;
-    }
-    #armoury-weapons .type, #armoury-armour .type {
-      width: 126px !important;
-      box-sizing: border-box !important;
-      padding: 0 !important;
-      position: relative !important;
-      overflow: hidden !important;
-    }`;
+    #armoury-weapons .loaned, #armoury-armour .loaned { width: 75px !important; overflow: visible !important; }
+    #armoury-weapons .type, #armoury-armour .type { width: 126px !important; box-sizing: border-box !important; padding: 0 !important; position: relative !important; overflow: hidden !important; }`;
   const style = document.createElement("style");
   style.textContent = css;
   document.head.appendChild(style);
@@ -639,12 +553,23 @@ const armorBonuses = {
   },
 };
 
-function createBonusBadge(value, bonus_name, item_name) {
-  const isDarkMode = document.body.classList.contains("dark-mode");
-  const modeClass = isDarkMode ? "dark-mode" : "light-mode";
+// DRY Helper for generating CSS gradient string
+function calculateGradient(colorStr, percent) {
+  if (!bonusColorsEnabled) return "linear-gradient(90deg, #333, #3a3a3a)";
+  const colors = {
+    red: { fill: "rgba(180,0,40,0.75)", base: "rgba(128,0,32,0.2)" },
+    orange: { fill: "rgba(191,111,0,0.75)", base: "rgba(191,111,0,0.2)" },
+    yellow: { fill: "rgba(191,191,0,0.75)", base: "rgba(191,191,0,0.2)" },
+  };
+  const selected = colors[colorStr];
+  if (!selected) return "linear-gradient(90deg, #333, #3a3a3a)";
+  return `linear-gradient(90deg, ${selected.fill} 0%, ${selected.fill} ${percent - 0.1}%, ${selected.base} ${percent + 0.1}%, ${selected.base} 101%)`;
+}
 
+function createBonusBadge(value, bonus_name, item_name) {
   const badge = document.createElement("div");
-  badge.className = `custom-bonus-badge ${modeClass}`;
+  // Mode class removed - Handled entirely by native CSS rules now
+  badge.className = "custom-bonus-badge";
 
   const numericValue =
     parseInt(String(value).replace(/[^0-9.-]/g, ""), 10) || 0;
@@ -656,28 +581,25 @@ function createBonusBadge(value, bonus_name, item_name) {
   const itemLower = String(item_name || "").toLowerCase();
   let itemSlot = null;
 
-  if (itemLower.includes("gloves")) {
-    itemSlot = "gloves";
-  } else if (itemLower.includes("boots") || itemLower.includes("hooves")) {
+  if (itemLower.includes("gloves")) itemSlot = "gloves";
+  else if (itemLower.includes("boots") || itemLower.includes("hooves"))
     itemSlot = "boots";
-  } else if (
+  else if (
     itemLower.includes("helmet") ||
     itemLower.includes("mask") ||
     itemLower.includes("respirator")
-  ) {
+  )
     itemSlot = "helmet";
-  } else if (itemLower.includes("pants")) {
-    itemSlot = "pants";
-  } else if (
+  else if (itemLower.includes("pants")) itemSlot = "pants";
+  else if (
     itemLower.includes("body") ||
     itemLower.includes("apron") ||
     itemLower.includes("vest") ||
     itemLower.includes("mail") ||
     itemLower.includes("suit") ||
     itemLower.includes("jacket")
-  ) {
+  )
     itemSlot = "body_armor";
-  }
 
   const armorBonus = Object.values(armorBonuses).find(
     (b) =>
@@ -695,28 +617,19 @@ function createBonusBadge(value, bonus_name, item_name) {
     minRange = armorBonus.min;
     maxRange = armorBonus.max;
     determinedColor = armorBonus.color;
-    if (bonusColorsEnabled) {
-      const percent =
-        armorBonus.max > armorBonus.min
-          ? Math.min(
-              Math.max(
-                ((numericValue - armorBonus.min) /
-                  (armorBonus.max - armorBonus.min)) *
-                  100,
-                0,
-              ),
-              100,
-            )
-          : 100;
-      const colors = {
-        red: { fill: "rgba(180,0,40,0.75)", base: "rgba(128,0,32,0.2)" },
-        orange: { fill: "rgba(191,111,0,0.75)", base: "rgba(191,111,0,0.2)" },
-        yellow: { fill: "rgba(191,191,0,0.75)", base: "rgba(191,191,0,0.2)" },
-      };
-      const selected = colors[armorBonus.color];
-      if (selected)
-        gradient = `linear-gradient(90deg, ${selected.fill} 0%, ${selected.fill} ${percent - 0.1}%, ${selected.base} ${percent + 0.1}%, ${selected.base} 101%)`;
-    }
+    const percent =
+      armorBonus.max > armorBonus.min
+        ? Math.min(
+            Math.max(
+              ((numericValue - armorBonus.min) /
+                (armorBonus.max - armorBonus.min)) *
+                100,
+              0,
+            ),
+            100,
+          )
+        : 100;
+    gradient = calculateGradient(armorBonus.color, percent);
   } else if (weaponBonus) {
     let color = null;
     let range = null;
@@ -754,11 +667,7 @@ function createBonusBadge(value, bonus_name, item_name) {
     if (range) {
       minRange = range.min;
       maxRange = range.max;
-    }
-
-    determinedColor = color;
-
-    if (bonusColorsEnabled && color && range) {
+      determinedColor = color;
       const percent =
         range.max > range.min
           ? Math.min(
@@ -769,25 +678,14 @@ function createBonusBadge(value, bonus_name, item_name) {
               100,
             )
           : 100;
-      const colors = {
-        red: { fill: "rgba(180,0,40,0.75)", base: "rgba(128,0,32,0.2)" },
-        orange: { fill: "rgba(191,111,0,0.75)", base: "rgba(191,111,0,0.2)" },
-        yellow: { fill: "rgba(191,191,0,0.75)", base: "rgba(191,191,0,0.2)" },
-      };
-      const selected = colors[color];
-      if (selected)
-        gradient = `linear-gradient(90deg, ${selected.fill} 0%, ${selected.fill} ${percent - 0.1}%, ${selected.base} ${percent + 0.1}%, ${selected.base} 101%)`;
+      gradient = calculateGradient(color, percent);
     }
   }
 
-  const unitOverrides = { disarm: "T", freeze: "s" };
-  const unit = unitOverrides[bonusName] || "%";
+  const unit = UNIT_OVERRIDES[bonusName] || "%";
+  const isStatic = STATIC_BONUSES.has(bonusName);
 
-  if (
-    bonusName === "irradiate" ||
-    bonusName === "smash" ||
-    bonusName === "radiation protection"
-  ) {
+  if (isStatic) {
     badge.textContent = bonus_name;
     gradient = "rgba(191,111,0,0.75)";
     determinedColor = "orange";
@@ -795,7 +693,6 @@ function createBonusBadge(value, bonus_name, item_name) {
     badge.textContent = `${numericValue}${unit} ${bonus_name}`;
   }
 
-  // Output Tier for Sorting Purposes
   let tierValue = 0;
   if (determinedColor === "red") tierValue = 3;
   else if (determinedColor === "orange") tierValue = 2;
@@ -803,20 +700,13 @@ function createBonusBadge(value, bonus_name, item_name) {
   badge.dataset.tier = tierValue;
 
   if (minRange !== null && maxRange !== null) {
-    if (
-      bonusName === "irradiate" ||
-      bonusName === "smash" ||
-      bonusName === "radiation protection"
-    ) {
-      badge.title = `Tier Range: ${minRange} - ${maxRange}`;
-    } else {
-      badge.title = `Tier Range: ${minRange}${unit} - ${maxRange}${unit}`;
-    }
+    badge.title = isStatic
+      ? `Tier Range: ${minRange} - ${maxRange}`
+      : `Tier Range: ${minRange}${unit} - ${maxRange}${unit}`;
   }
 
   badge.style.background = gradient;
 
-  // Using a quick inline timeout prevents conflict with CSS hover transitions
   badge.style.transform = "scale(0.75)";
   setTimeout(() => (badge.style.transform = ""), 100);
 
@@ -828,21 +718,23 @@ const isMobile = () =>
   (navigator.maxTouchPoints > 0 && window.innerWidth <= 768);
 
 // AUCTION HOUSE / AMARKET ========================================================================================================
-
 function amarket() {
-  $(".t-gray-6").html("");
+  // Pure JS replacement for jQuery loop
+  document.querySelectorAll(".t-gray-6").forEach((el) => (el.innerHTML = ""));
 
-  const rows = $(".bonus-attachment-icons").parents("div.item-cont-wrap");
-  if (rows.length === 0) return;
+  const iconSpans = document.querySelectorAll("span.bonus-attachment-icons");
+  const uniqueRows = new Set(
+    Array.from(iconSpans)
+      .map((icon) => icon.closest("div.item-cont-wrap"))
+      .filter(Boolean),
+  );
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const container = $(row).find("p.t-gray-6")[0];
-    const icons = $(row).find("span.bonus-attachment-icons");
+  for (const row of uniqueRows) {
+    const container = row.querySelector("p.t-gray-6");
+    const icons = row.querySelectorAll("span.bonus-attachment-icons");
 
     if (!container || icons.length === 0) continue;
 
-    container.innerHTML = "";
     container.style.display = "flex";
     container.style.flexDirection = "row";
     container.style.flexWrap = "wrap";
@@ -870,22 +762,26 @@ function amarket() {
 }
 
 // DISPLAY ========================================================================================================
-
 function displaycase() {
-  const items = $(".bonus-attachment-icons").parents("div.iconsbonuses");
-  if (items.length === 0) return;
+  const iconSpans = document.querySelectorAll("span.bonus-attachment-icons");
+  const uniqueItems = new Set(
+    Array.from(iconSpans)
+      .map((icon) => icon.closest("div.iconsbonuses"))
+      .filter(Boolean),
+  );
 
-  for (let i in items) {
-    if (!isIntNumber(i)) continue;
-
-    const bonusIcons = $(items[i]).find("span.bonus-attachment-icons");
+  for (const item of uniqueItems) {
+    const bonusIcons = item.querySelectorAll("span.bonus-attachment-icons");
     if (bonusIcons.length === 0) continue;
 
-    bonusIcons.find("div.custom-bonus-badge").remove();
-    const item_name =
-      bonusIcons[0].parentElement.parentElement.parentElement.querySelector(
-        "[class*=name]",
-      ).childNodes[3].textContent;
+    item
+      .querySelectorAll("div.custom-bonus-badge")
+      .forEach((el) => el.remove());
+
+    const nameNode = bonusIcons[0]
+      .closest(".item-wrap")
+      ?.querySelector("[class*=name]");
+    const item_name = nameNode ? nameNode.childNodes[3]?.textContent : "";
 
     const first = bonusIcons[0];
     if (first && first.title) {
@@ -911,26 +807,7 @@ function displaycase() {
   }
 }
 
-function observeDarkModeToggle() {
-  const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (
-        mutation.type === "attributes" &&
-        mutation.attributeName === "class"
-      ) {
-        if (document.URL.includes("display")) displaycase();
-      }
-    }
-  });
-  observer.observe(document.body, {
-    attributes: true,
-    attributeFilter: ["class"],
-  });
-}
-observeDarkModeToggle();
-
 // BAZAAR ========================================================================================================
-
 function bazaar(triggered) {
   if (!triggered || !triggered[0] || triggered[0].childElementCount < 1) return;
 
@@ -945,10 +822,8 @@ function bazaar(triggered) {
 
     const name = element.getAttribute("data-bonus-attachment-title");
     const desc = element.getAttribute("data-bonus-attachment-description");
-    const item_name =
-      element.parentElement.parentElement.parentElement.parentElement.querySelector(
-        "[class*=name]",
-      ).textContent;
+    const nameWrap = element.closest("li")?.querySelector("[class*=name]");
+    const item_name = nameWrap ? nameWrap.textContent : "";
     if (!name || !desc) return;
 
     const value = formatNew(desc, name);
@@ -963,17 +838,6 @@ function bazaar(triggered) {
   container.classList.add("custom-bazaar-container");
 }
 
-const observer = new MutationObserver(() => {
-  document
-    .querySelectorAll(".iconBonuses____iFjZ")
-    .forEach((el) => bazaar([el]));
-});
-observer.observe(document.body, {
-  attributes: true,
-  attributeFilter: ["class"],
-  subtree: false,
-});
-
 function manage(triggered) {
   if (triggered && triggered[0]) {
     var className = triggered[0].className;
@@ -982,18 +846,14 @@ function manage(triggered) {
     name = name.charAt(0).toUpperCase() + name.slice(1);
     name = trueName(name);
 
-    triggered[0].parentElement.parentElement.parentElement.childNodes[2].childNodes[0].innerHTML =
-      triggered[0].parentElement.parentElement.parentElement.childNodes[2].childNodes[0].innerHTML.split(
-        " x",
-      )[0] +
-      " (" +
-      name +
-      ")";
+    const targetEl =
+      triggered[0].parentElement.parentElement.parentElement.childNodes[2]
+        .childNodes[0];
+    targetEl.innerHTML = targetEl.innerHTML.split(" x")[0] + " (" + name + ")";
   }
 }
 
 // ARMORY ========================================================================================================
-
 function armory(triggered) {
   const renameTypeHeader = (armouryRoot) => {
     armouryRoot?.querySelectorAll(".type").forEach((el) => {
@@ -1089,7 +949,6 @@ function armory(triggered) {
 }
 
 // INVENTORY & BAZAAR ========================================================================================================
-
 function inventoryandbazaar(triggered) {
   const link = document.URL;
   const removePreviousSpans = (container) => {
@@ -1180,7 +1039,6 @@ function inventoryandbazaar(triggered) {
 }
 
 // ITEM MARKET ========================================================================================================
-
 function newItemMarket(triggered) {
   if (!triggered?.[0]) return;
   if (!document.URL.includes("ItemMarket")) return;
@@ -1233,7 +1091,6 @@ function newItemMarket(triggered) {
     if (badge2) badges.push(badge2);
   }
 
-  // Sort by extracted tier descending (Highest tier is assigned to primary badge)
   badges.sort((a, b) => {
     const tierA = parseInt(a.dataset.tier || "0", 10);
     const tierB = parseInt(b.dataset.tier || "0", 10);
@@ -1246,8 +1103,6 @@ function newItemMarket(triggered) {
   } else if (badges.length === 2) {
     badges[0].classList.add("primary-badge");
     badges[1].classList.add("secondary-badge");
-
-    // Secondary appended first structurally so the DOM renders it backwards behind primary
     stackWrapper.appendChild(badges[1]);
     stackWrapper.appendChild(badges[0]);
   }
@@ -1260,67 +1115,22 @@ function newItemMarket(triggered) {
   tile.setAttribute("data-badge-added", "true");
 }
 
-function rerunNewItemMarket() {
-  document.querySelectorAll(".itemTile___cbw7w").forEach((el) => {
-    const bonusArea =
-      el.querySelector(".bonuses-wrap") ||
-      el.childNodes?.[0]?.childNodes?.[2]?.childNodes?.[0]?.childNodes?.[0];
-    bonusArea
-      ?.querySelectorAll(".custom-bonus-label")
-      .forEach((span) => span.remove());
+// FORMATTING & HELPERS ================================================================================================
 
-    try {
-      const bonusContainer =
-        el.childNodes?.[0]?.childNodes?.[2]?.childNodes?.[0];
-      const leftColumn = bonusContainer?.childNodes?.[0];
-      const appendNode =
-        leftColumn?.parentElement?.parentElement?.parentElement?.parentElement;
-      if (appendNode)
-        appendNode
-          .querySelectorAll(".custom-bonus-badge, .custom-badge-stack")
-          .forEach((node) => node.remove());
-    } catch (e) {
-      el.querySelectorAll(".custom-bonus-badge, .custom-badge-stack").forEach(
-        (node) => node.remove(),
-      );
-    }
-
-    el.removeAttribute("data-badge-added");
-    newItemMarket([el]);
-  });
-}
-
-let darkModeTimer;
-const darkModeObserver = new MutationObserver(() => {
-  clearTimeout(darkModeTimer);
-  darkModeTimer = setTimeout(rerunNewItemMarket, 50);
-});
-darkModeObserver.observe(document.body, {
-  attributes: true,
-  attributeFilter: ["class"],
-});
-
-// FORMATTING ========================================================================================================
-
-function format(title, name) {
-  const excludedNames = [
-    "Irradiate",
-    "Smash",
-    "Dimensiokinesis",
-    "Oneirokinesis",
-  ];
-  if (excludedNames.includes(name)) return "";
-
+// Shared parsing logic for both title strings and description strings
+const executeFormatting = (str, name) => {
+  if (STATIC_BONUSES.has(name.toLowerCase())) return "";
   const specialHandlers = {
-    Disarm: () => title.split(" turns")[0]?.split("for ")[1] + " T ",
-    Bloodlust: () => title.split(" of")[0]?.split("by ")[1] + " ",
-    Execute: () => title.split(" life")[0]?.split("below ")[1] + " ",
-    Penetrate: () => title.split(" of")[0]?.split("Ignores ")[1] + " ",
-    Eviscerate: () => title.split(" extra")[0]?.split("them ")[1] + " ",
+    Disarm: () => str.split(" turns")[0]?.split("for ")[1] + " T ",
+    Bloodlust: () => str.split(" of")[0]?.split("by ")[1] + " ",
+    Execute: () => str.split(" life")[0]?.split("below ")[1] + " ",
+    Penetrate: () => str.split(" of")[0]?.split("Ignores ")[1] + " ",
+    Eviscerate: () => str.split(" extra")[0]?.split("them ")[1] + " ",
     Poison: () =>
-      title.split(" chance to Poison")[0]?.split("</b><br/>")[1] + " ",
+      (str.includes("</b><br/>")
+        ? str.split(" chance to Poison")[0]?.split("</b><br/>")[1]
+        : str.split(" chance to Poison")[0]) + " ",
   };
-
   if (specialHandlers[name]) {
     try {
       return specialHandlers[name]() || "";
@@ -1328,40 +1138,21 @@ function format(title, name) {
       return "";
     }
   }
-
+  // Standard extraction
   try {
-    const raw = title.split(">")[3]?.split("%")[0];
-    return raw ? raw + "% " : "";
+    if (str.includes(">"))
+      return (str.split(">")[3]?.split("%")[0] || "") + "% ";
+    return str.split("%")[0] + "% ";
   } catch (e) {
     return "";
   }
+};
+
+function format(title, name) {
+  return executeFormatting(title, name);
 }
-
 function formatNew(desc, name) {
-  const specialHandlers = {
-    Disarm: () => desc.split(" turns")[0]?.split("for ")[1] + " T ",
-    Bloodlust: () => desc.split(" of")[0]?.split("by ")[1] + " ",
-    Execute: () => desc.split(" life")[0]?.split("below ")[1] + " ",
-    Penetrate: () => desc.split(" of")[0]?.split("Ignores ")[1] + " ",
-    Eviscerate: () => desc.split(" extra")[0]?.split("them ")[1] + " ",
-    Poison: () => desc.split(" chance to Poison")[0] + " ",
-  };
-  const excludedNames = [
-    "Irradiate",
-    "Smash",
-    "Dimensiokinesis",
-    "Oneirokinesis",
-  ];
-
-  if (excludedNames.includes(name)) return "";
-  if (specialHandlers[name]) {
-    try {
-      return specialHandlers[name]() || "";
-    } catch (e) {
-      return "";
-    }
-  }
-  return desc.split("%")[0] + "% ";
+  return executeFormatting(desc, name);
 }
 
 function trueName(text) {
@@ -1369,8 +1160,7 @@ function trueName(text) {
   return map[text] || text;
 }
 
-// FORMATTING ========================================================================================================
-
+// OBSERVER INIT ========================================================================================================
 const observerMap = {
   ".item-cont-wrap": amarket,
   ".display-main-page": displaycase,
@@ -1394,6 +1184,16 @@ const process = () => {
   }
 };
 
-const mainObserver = new MutationObserver(process);
+// Debounced Observer to drastically reduce CPU overhead during heavy DOM modifications
+let isProcessing = false;
+const mainObserver = new MutationObserver(() => {
+  if (!isProcessing) {
+    isProcessing = true;
+    requestAnimationFrame(() => {
+      process();
+      isProcessing = false;
+    });
+  }
+});
 mainObserver.observe(document.body, { childList: true, subtree: true });
 process();
