@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RW Bonus Labels
 // @namespace    https://github.com/MWTBDLTR/torn-scripts
-// @version      8.2.0
+// @version      8.3.0
 // @description  Displays RW bonus values with convenient names consistently across all Torn pages.
 // @author       RyuFive + MrChurch [3654415]
 // @match        https://www.torn.com/displaycase.php*
@@ -36,23 +36,23 @@ const ABBREVIATIONS = {
   assassinate: "Ass",
   backstab: "Back",
   bloodlust: "Blood",
-  blindside: "Blind",
+  blindside: "Blndsi",
   comeback: "Come",
   conserve: "Cons",
-  cripple: "Crip",
+  cripple: "Cripp",
   crusher: "Crush",
-  deadeye: "Dead",
+  deadeye: "Ddeye",
   "double tap": "D-Tap",
   "double-edged": "D-Edge",
   empower: "Empwr",
   eviscerate: "Evisc",
   execute: "Exec",
-  expose: "Expo",
+  expose: "Exp",
   finale: "Fin",
   "home run": "H-Run",
   irradiate: "Irrad",
   motivation: "Motiv",
-  paralyze: "Prlyz",
+  paralyze: "Para",
   penetrate: "Pene",
   plunder: "Plndr",
   powerful: "Power",
@@ -64,18 +64,18 @@ const ABBREVIATIONS = {
   specialist: "Spec",
   stricken: "Strick",
   suppress: "Suppr",
-  "sure shot": "Sure",
+  "sure shot": "Sure-S",
   throttle: "Thrott",
   warlord: "War",
   weaken: "Weak",
-  "wind-up": "W-up",
-  wither: "Wthr",
-  blindfire: "Blndfr",
+  "wind-up": "Wind-U",
+  wither: "With",
+  blindfire: "Blndfir",
   demoralize: "Demor",
   emasculate: "Emasc",
   hazardous: "Hzrd",
   laceration: "Lacer",
-  "severe burning": "Burn",
+  "severe burning": "Sev-Brn",
   imperviable: "Imperv",
   immutable: "Immut",
   irrepressible: "Irrep",
@@ -106,8 +106,15 @@ const ABBREVIATIONS = {
     .custom-badge-inline-row { display: flex; flex-direction: row; justify-content: center; align-items: center; width: 100%; margin-bottom: 4px; gap: 3px; }
     .custom-badge-inline-row .custom-bonus-badge { font-size: 10px; padding: 2px 4px; letter-spacing: -0.2px; }
     
+    /* Armory Cell Fit Layout */
     #armoury-weapons .loaned, #armoury-armour .loaned { width: 75px !important; overflow: visible !important; }
-    #armoury-weapons .type, #armoury-armour .type { width: 126px !important; box-sizing: border-box !important; padding: 0 !important; position: relative !important; overflow: hidden !important; }`;
+    #armoury-weapons .type, #armoury-armour .type { width: 126px !important; box-sizing: border-box !important; padding: 0 !important; position: relative !important; overflow: hidden !important; }
+    #armoury-weapons .double, #armoury-armour .double { height: 40px !important; line-height: normal !important; }
+    .custom-armory-bonus-badge { position: absolute !important; left: 0 !important; right: 0 !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; border: none !important; box-sizing: border-box !important; display: block !important; overflow: hidden !important; padding: 0 !important; text-align: left !important; text-indent: 0 !important; }
+    .custom-armory-bonus-text { position: absolute !important; left: 5px !important; right: 5px !important; top: 50% !important; transform: translateY(-50%) !important; white-space: nowrap !important; line-height: 1.1em !important; }
+    .custom-armory-bonus-badge:first-child:last-child { top: 0 !important; bottom: 0 !important; }
+    .double .custom-armory-bonus-badge:first-child { top: 0 !important; bottom: 50% !important; border-bottom: 1px solid rgba(0,0,0,0.5) !important; }
+    .double .custom-armory-bonus-badge:last-child { top: 50% !important; bottom: 0 !important; }`;
   const style = document.createElement("style");
   style.textContent = css;
   document.head.appendChild(style);
@@ -783,7 +790,6 @@ const isMobile = () =>
 
 // AUCTION HOUSE / AMARKET ========================================================================================================
 function amarket() {
-  // Pure JS replacement for jQuery loop
   document.querySelectorAll(".t-gray-6").forEach((el) => (el.innerHTML = ""));
 
   const iconSpans = document.querySelectorAll("span.bonus-attachment-icons");
@@ -997,16 +1003,41 @@ function armory(triggered) {
     if (bonuses.length) {
       display.textContent = "";
       display.style.position = "relative";
-      display.style.display = "flex";
-      display.style.flexDirection = "column";
-      display.style.justifyContent = "center";
-      display.style.alignItems = "flex-start";
-      display.style.gap = "2px";
-      display.style.paddingLeft = "6px";
+      display.style.padding = "0";
+      display.style.overflow = "hidden";
+      display.classList.toggle("double", bonuses.length > 1);
+      display.style.height = bonuses.length > 1 ? "32px" : "";
 
       bonuses.forEach((b) => {
-        const badge = createBonusBadge(b.value, b.name, item_name);
+        // Create standard badge, unabbreviated so text scales naturally to cell width
+        const badge = createBonusBadge(b.value, b.name, item_name, false);
+
+        const text = document.createElement("span");
+        text.className = "custom-armory-bonus-text";
+        text.textContent = badge.textContent;
+
+        badge.textContent = "";
+        badge.appendChild(text);
+        badge.classList.add("custom-armory-bonus-badge");
+        badge.style.fontSize = bonuses.length > 1 ? "8px" : "10px";
+        badge.style.lineHeight = "1.1em";
+        badge.style.transform = "";
+
         display.appendChild(badge);
+
+        const fitArmoryBadgeText = () => {
+          badge.style.transform = "";
+          while (
+            (text.scrollWidth > text.clientWidth ||
+              text.getBoundingClientRect().height > badge.clientHeight) &&
+            parseFloat(badge.style.fontSize) > 7
+          ) {
+            badge.style.fontSize = `${parseFloat(badge.style.fontSize) - 0.5}px`;
+          }
+        };
+
+        fitArmoryBadgeText();
+        setTimeout(fitArmoryBadgeText, 120);
       });
     }
   }
@@ -1141,7 +1172,6 @@ function newItemMarket(triggered) {
     const desc = node.getAttribute("data-bonus-attachment-description");
     if (!name || !desc) return null;
     const value = formatNew(desc, name);
-    // Use the abbreviated name only when two bonuses compete for space
     const badge = createBonusBadge(value, name, item_name, hasTwoBonuses);
     badge.style.margin = "0";
     return badge;
@@ -1174,7 +1204,6 @@ function newItemMarket(triggered) {
 
 // FORMATTING & HELPERS ================================================================================================
 
-// Shared parsing logic for both title strings and description strings
 const executeFormatting = (str, name) => {
   if (STATIC_BONUSES.has(name.toLowerCase())) return "";
   const specialHandlers = {
@@ -1195,7 +1224,6 @@ const executeFormatting = (str, name) => {
       return "";
     }
   }
-  // Standard extraction
   try {
     if (str.includes(">"))
       return (str.split(">")[3]?.split("%")[0] || "") + "% ";
