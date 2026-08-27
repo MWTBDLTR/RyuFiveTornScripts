@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RW Bonus Labels
 // @namespace    https://github.com/MWTBDLTR/torn-scripts
-// @version      8.3.1
+// @version      8.3.3
 // @description  Displays RW bonus values with convenient names consistently across all Torn pages.
 // @author       RyuFive + MrChurch [3654415]
 // @match        https://www.torn.com/displaycase.php*
@@ -111,7 +111,7 @@ const ABBREVIATIONS = {
     #armoury-weapons .type, #armoury-armour .type { width: 126px !important; box-sizing: border-box !important; padding: 0 !important; position: relative !important; overflow: hidden !important; }
     #armoury-weapons .double, #armoury-armour .double { height: 40px !important; line-height: normal !important; }
     .custom-armory-bonus-badge { position: absolute !important; left: 0 !important; right: 0 !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; border: none !important; box-sizing: border-box !important; display: block !important; overflow: hidden !important; padding: 0 !important; text-align: left !important; text-indent: 0 !important; }
-    .custom-armory-bonus-text { position: absolute !important; left: 5px !important; right: 5px !important; top: 50% !important; transform: translateY(-50%) !important; white-space: nowrap !important; line-height: 1.1em !important; }
+    .custom-armory-bonus-text { position: absolute !important; left: 2px !important; right: 2px !important; top: 50% !important; transform: translateY(-50%) !important; white-space: nowrap !important; line-height: 1.1em !important; }
     .custom-armory-bonus-badge:first-child:last-child { top: 0 !important; bottom: 0 !important; }
     .double .custom-armory-bonus-badge:first-child { top: 0 !important; bottom: 50% !important; border-bottom: 1px solid rgba(0,0,0,0.5) !important; }
     .double .custom-armory-bonus-badge:last-child { top: 50% !important; bottom: 0 !important; }`;
@@ -1009,7 +1009,6 @@ function armory(triggered) {
       display.style.height = bonuses.length > 1 ? "32px" : "";
 
       bonuses.forEach((b) => {
-        // Enforce abbreviation if it's a double bonus OR if it's a single bonus longer than 7 characters
         const shouldAbbreviate = bonuses.length > 1 || b.name.length > 7;
         const badge = createBonusBadge(
           b.value,
@@ -1025,7 +1024,6 @@ function armory(triggered) {
         badge.textContent = "";
         badge.appendChild(text);
         badge.classList.add("custom-armory-bonus-badge");
-        // Initializing the badge slightly larger to give it room to shrink elegantly
         badge.style.fontSize = bonuses.length > 1 ? "10px" : "12px";
         badge.style.lineHeight = "1.1em";
         badge.style.transform = "";
@@ -1034,10 +1032,11 @@ function armory(triggered) {
 
         const fitArmoryBadgeText = () => {
           badge.style.transform = "";
+          // +2px padding tolerance added to calculation so sub-pixel clipping doesn't force a shrink
           while (
-            (text.scrollWidth > text.clientWidth ||
-              text.getBoundingClientRect().height > badge.clientHeight) &&
-            parseFloat(badge.style.fontSize) > 10 // Clamped minimum to 10px to ensure readability
+            (text.scrollWidth > text.clientWidth + 2 ||
+              text.getBoundingClientRect().height > badge.clientHeight + 1) &&
+            parseFloat(badge.style.fontSize) > 10
           ) {
             badge.style.fontSize = `${parseFloat(badge.style.fontSize) - 0.5}px`;
           }
@@ -1179,8 +1178,8 @@ function newItemMarket(triggered) {
     const desc = node.getAttribute("data-bonus-attachment-description");
     if (!name || !desc) return null;
     const value = formatNew(desc, name);
-    // Applies abbreviation logic across dual-bonus market items and single bonus items > 7 chars
-    const shouldAbbreviate = hasTwoBonuses || name.length > 7;
+    // Only abbreviate on the Item Market if there are two bonuses competing for space
+    const shouldAbbreviate = hasTwoBonuses;
     const badge = createBonusBadge(value, name, item_name, shouldAbbreviate);
     badge.style.margin = "0";
     return badge;
