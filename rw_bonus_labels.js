@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RW Bonus Labels
 // @namespace    https://github.com/MWTBDLTR/torn-scripts
-// @version      8.1.0
+// @version      8.2.0
 // @description  Displays RW bonus values with convenient names consistently across all Torn pages.
 // @author       RyuFive + MrChurch [3654415]
 // @match        https://www.torn.com/displaycase.php*
@@ -28,6 +28,64 @@ const STATIC_BONUSES = new Set([
 ]);
 const UNIT_OVERRIDES = { disarm: "T", freeze: "s" };
 
+const ABBREVIATIONS = {
+  "radiation protection": "Rad",
+  dimensiokinesis: "Dimens",
+  oneirokinesis: "Oneiro",
+  kinetokinesis: "Kineto",
+  assassinate: "Ass",
+  backstab: "Back",
+  bloodlust: "Blood",
+  blindside: "Blind",
+  comeback: "Come",
+  conserve: "Cons",
+  cripple: "Crip",
+  crusher: "Crush",
+  deadeye: "Dead",
+  "double tap": "D-Tap",
+  "double-edged": "D-Edge",
+  empower: "Empwr",
+  eviscerate: "Evisc",
+  execute: "Exec",
+  expose: "Expo",
+  finale: "Fin",
+  "home run": "H-Run",
+  irradiate: "Irrad",
+  motivation: "Motiv",
+  paralyze: "Prlyz",
+  penetrate: "Pene",
+  plunder: "Plndr",
+  powerful: "Power",
+  proficience: "Prof",
+  puncture: "Punct",
+  quicken: "Quick",
+  revitalize: "Revit",
+  roshambo: "Useless",
+  specialist: "Spec",
+  stricken: "Strick",
+  suppress: "Suppr",
+  "sure shot": "Sure",
+  throttle: "Thrott",
+  warlord: "War",
+  weaken: "Weak",
+  "wind-up": "W-up",
+  wither: "Wthr",
+  blindfire: "Blndfr",
+  demoralize: "Demor",
+  emasculate: "Emasc",
+  hazardous: "Hzrd",
+  laceration: "Lacer",
+  "severe burning": "Burn",
+  imperviable: "Imperv",
+  immutable: "Immut",
+  irrepressible: "Irrep",
+  impregnable: "Impreg",
+  impenetrable: "Impen",
+  impassable: "Impass",
+  invulnerable: "Invuln",
+  insurmountable: "Insur",
+};
+
 (function addCustomStyles() {
   const css = `
     .custom-itemmarket-container { display: flex !important; flex-direction: column; margin-top: 15px; white-space: normal; padding-left: 0; }
@@ -44,12 +102,9 @@ const UNIT_OVERRIDES = { disarm: "T", freeze: "s" };
     body.dark-mode .custom-bonus-label { background: linear-gradient(145deg, rgba(51, 51, 51, 0.7), rgba(17, 17, 17, 0.7)) !important; color: white !important; }
     body:not(.dark-mode) .custom-bonus-label { background: linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(230, 230, 230, 1)) !important; color: black !important; }
     
-    /* Dynamic Hover Stack for Item Market */
-    .custom-badge-stack { position: relative; display: flex; justify-content: center; align-items: center; height: 22px; width: 100%; margin-bottom: 4px; }
-    .custom-badge-stack .primary-badge { position: relative; z-index: 2; }
-    .custom-badge-stack .secondary-badge { position: absolute; z-index: 1; transform: translate(5px, 5px) scale(0.9); opacity: 0.85; filter: brightness(0.85); }
-    .custom-badge-stack:hover .secondary-badge { transform: translate(0, 115%) scale(1); opacity: 1; filter: brightness(1); z-index: 3; }
-    .custom-badge-stack:hover .primary-badge { transform: translateY(-12px); }
+    /* Inline Row Layout for Dual Bonuses in Item Market */
+    .custom-badge-inline-row { display: flex; flex-direction: row; justify-content: center; align-items: center; width: 100%; margin-bottom: 4px; gap: 3px; }
+    .custom-badge-inline-row .custom-bonus-badge { font-size: 10px; padding: 2px 4px; letter-spacing: -0.2px; }
     
     #armoury-weapons .loaned, #armoury-armour .loaned { width: 75px !important; overflow: visible !important; }
     #armoury-weapons .type, #armoury-armour .type { width: 126px !important; box-sizing: border-box !important; padding: 0 !important; position: relative !important; overflow: hidden !important; }`;
@@ -566,9 +621,16 @@ function calculateGradient(colorStr, percent) {
   return `linear-gradient(90deg, ${selected.fill} 0%, ${selected.fill} ${percent - 0.1}%, ${selected.base} ${percent + 0.1}%, ${selected.base} 101%)`;
 }
 
-function createBonusBadge(value, bonus_name, item_name) {
+function getAbbreviation(name) {
+  if (!name) return "";
+  const lower = name.toLowerCase();
+  if (ABBREVIATIONS[lower]) return ABBREVIATIONS[lower];
+  if (name.length > 7) return name.substring(0, 6);
+  return name;
+}
+
+function createBonusBadge(value, bonus_name, item_name, abbreviate = false) {
   const badge = document.createElement("div");
-  // Mode class removed - Handled entirely by native CSS rules now
   badge.className = "custom-bonus-badge";
 
   const numericValue =
@@ -685,12 +747,14 @@ function createBonusBadge(value, bonus_name, item_name) {
   const unit = UNIT_OVERRIDES[bonusName] || "%";
   const isStatic = STATIC_BONUSES.has(bonusName);
 
+  const displayName = abbreviate ? getAbbreviation(bonus_name) : bonus_name;
+
   if (isStatic) {
-    badge.textContent = bonus_name;
+    badge.textContent = displayName;
     gradient = "rgba(191,111,0,0.75)";
     determinedColor = "orange";
   } else {
-    badge.textContent = `${numericValue}${unit} ${bonus_name}`;
+    badge.textContent = `${numericValue}${unit} ${displayName}`;
   }
 
   let tierValue = 0;
@@ -1061,21 +1125,24 @@ function newItemMarket(triggered) {
   if (!appendNode) return;
 
   appendNode
-    .querySelectorAll(".custom-bonus-badge, .custom-badge-stack")
+    .querySelectorAll(".custom-bonus-badge, .custom-badge-inline-row")
     .forEach((el) => el.remove());
 
-  const stackWrapper = document.createElement("div");
-  stackWrapper.className = "custom-badge-stack";
-  appendNode.appendChild(stackWrapper);
+  const rowWrapper = document.createElement("div");
+  rowWrapper.className = "custom-badge-inline-row";
+  appendNode.appendChild(rowWrapper);
 
   let badges = [];
+  const hasTwoBonuses =
+    bonusContainer?.childNodes?.[1]?.childElementCount === 2;
 
   const extractBadge = (node) => {
     const name = node.getAttribute("data-bonus-attachment-title");
     const desc = node.getAttribute("data-bonus-attachment-description");
     if (!name || !desc) return null;
     const value = formatNew(desc, name);
-    const badge = createBonusBadge(value, name, item_name);
+    // Use the abbreviated name only when two bonuses compete for space
+    const badge = createBonusBadge(value, name, item_name, hasTwoBonuses);
     badge.style.margin = "0";
     return badge;
   };
@@ -1083,8 +1150,6 @@ function newItemMarket(triggered) {
   const badge1 = extractBadge(primaryNode);
   if (badge1) badges.push(badge1);
 
-  const hasTwoBonuses =
-    bonusContainer?.childNodes?.[1]?.childElementCount === 2;
   if (hasTwoBonuses) {
     const secondaryNode = bonusContainer.childNodes[1].childNodes[1];
     const badge2 = extractBadge(secondaryNode);
@@ -1097,15 +1162,7 @@ function newItemMarket(triggered) {
     return tierB - tierA;
   });
 
-  if (badges.length === 1) {
-    badges[0].classList.add("primary-badge");
-    stackWrapper.appendChild(badges[0]);
-  } else if (badges.length === 2) {
-    badges[0].classList.add("primary-badge");
-    badges[1].classList.add("secondary-badge");
-    stackWrapper.appendChild(badges[1]);
-    stackWrapper.appendChild(badges[0]);
-  }
+  badges.forEach((badge) => rowWrapper.appendChild(badge));
 
   appendNode.style.display = "flex";
   appendNode.style.flexDirection = "column";
