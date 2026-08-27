@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RW Bonus Labels
-// @namespace    https://github.com/RyuFive/TornScripts
-// @version      8.0.7
+// @namespace    https://github.com/MWTBDLTR/RyuFiveTornScripts
+// @version      8.0.8
 // @description  Displays RW bonus values with convenient names consistently across all Torn pages.
 // @author       RyuFive + MrChurch [3654415]
 // @match        https://www.torn.com/displaycase.php*
@@ -11,8 +11,8 @@
 // @match        https://www.torn.com/item.php*
 // @match        https://www.torn.com/page.php?sid=ItemMarket*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=torn.com
-// @downloadURL  https://raw.githubusercontent.com/MWTBDLTR/RyuFiveTornScripts/refs/heads/main/rw_bonus_labels.js
-// @updateURL    https://raw.githubusercontent.com/MWTBDLTR/RyuFiveTornScripts/refs/heads/main/rw_bonus_labels.js
+// @downloadURL  https://github.com/MWTBDLTR/RyuFiveTornScripts/raw/main/rw_bonus_labels.js
+// @updateURL    https://github.com/MWTBDLTR/RyuFiveTornScripts/raw/main/rw_bonus_labels.js
 // @license      MIT
 // ==/UserScript==
 
@@ -62,7 +62,7 @@ let bonusColorsEnabled = true;
       max-width: 100%;
     }
     
-    /* Standardized global badge styling (Matches Inventory) */
+    /* Standardized global badge styling */
     .custom-bonus-badge {
       display: inline-block;
       font-size: 11px;
@@ -76,8 +76,8 @@ let bonusColorsEnabled = true;
       box-shadow: 0 1px 3px rgba(0,0,0,0.2);
       border: 1px solid rgba(0,0,0,0.6);
       vertical-align: middle;
-      transition: background 0.4s ease, transform 0.1s ease;
-      cursor: help; /* Adds a little question mark cursor on hover */
+      transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+      cursor: help;
     }
     
     .custom-bonus-badge.dark-mode {
@@ -96,6 +96,38 @@ let bonusColorsEnabled = true;
       background: linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(230, 230, 230, 1)) !important;
       color: black !important;
     }
+    
+    /* Dynamic Hover Stack for Item Market */
+    .custom-badge-stack {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 22px;
+      width: 100%;
+      margin-bottom: 4px;
+    }
+    .custom-badge-stack .primary-badge {
+      position: relative;
+      z-index: 2;
+    }
+    .custom-badge-stack .secondary-badge {
+      position: absolute;
+      z-index: 1;
+      transform: translate(5px, 5px) scale(0.9);
+      opacity: 0.85;
+      filter: brightness(0.85);
+    }
+    .custom-badge-stack:hover .secondary-badge {
+      transform: translate(0, -115%) scale(1);
+      opacity: 1;
+      filter: brightness(1);
+      z-index: 3;
+    }
+    .custom-badge-stack:hover .primary-badge {
+      transform: translateY(2px);
+    }
+    
     #armoury-weapons .loaned, #armoury-armour .loaned {
       width: 75px !important;
       overflow: visible !important;
@@ -657,10 +689,12 @@ function createBonusBadge(value, bonus_name, item_name) {
 
   let minRange = null;
   let maxRange = null;
+  let determinedColor = null;
 
   if (armorBonus) {
     minRange = armorBonus.min;
     maxRange = armorBonus.max;
+    determinedColor = armorBonus.color;
     if (bonusColorsEnabled) {
       const percent =
         armorBonus.max > armorBonus.min
@@ -717,11 +751,12 @@ function createBonusBadge(value, bonus_name, item_name) {
         color = "orange";
     }
 
-    // Assign min & max values if a matching range exists
     if (range) {
       minRange = range.min;
       maxRange = range.max;
     }
+
+    determinedColor = color;
 
     if (bonusColorsEnabled && color && range) {
       const percent =
@@ -748,7 +783,25 @@ function createBonusBadge(value, bonus_name, item_name) {
   const unitOverrides = { disarm: "T", freeze: "s" };
   const unit = unitOverrides[bonusName] || "%";
 
-  // Construct and assign the tooltip title if min and max range was found
+  if (
+    bonusName === "irradiate" ||
+    bonusName === "smash" ||
+    bonusName === "radiation protection"
+  ) {
+    badge.textContent = bonus_name;
+    gradient = "rgba(191,111,0,0.75)";
+    determinedColor = "orange";
+  } else {
+    badge.textContent = `${numericValue}${unit} ${bonus_name}`;
+  }
+
+  // Output Tier for Sorting Purposes
+  let tierValue = 0;
+  if (determinedColor === "red") tierValue = 3;
+  else if (determinedColor === "orange") tierValue = 2;
+  else if (determinedColor === "yellow") tierValue = 1;
+  badge.dataset.tier = tierValue;
+
   if (minRange !== null && maxRange !== null) {
     if (
       bonusName === "irradiate" ||
@@ -761,18 +814,9 @@ function createBonusBadge(value, bonus_name, item_name) {
     }
   }
 
-  if (
-    bonusName === "irradiate" ||
-    bonusName === "smash" ||
-    bonusName === "radiation protection"
-  ) {
-    badge.textContent = bonus_name;
-    gradient = "rgba(191,111,0,0.75)";
-  } else {
-    badge.textContent = `${numericValue}${unit} ${bonus_name}`;
-  }
-
   badge.style.background = gradient;
+
+  // Using a quick inline timeout prevents conflict with CSS hover transitions
   badge.style.transform = "scale(0.75)";
   setTimeout(() => (badge.style.transform = ""), 100);
 
@@ -1138,79 +1182,82 @@ function inventoryandbazaar(triggered) {
 // ITEM MARKET ========================================================================================================
 
 function newItemMarket(triggered) {
-    if (!triggered?.[0]) return
-    if (!document.URL.includes("ItemMarket")) return
+  if (!triggered?.[0]) return;
+  if (!document.URL.includes("ItemMarket")) return;
 
-    const tile = triggered[0]
-    if (tile.getAttribute("data-badge-added") === "true") return
+  const tile = triggered[0];
+  if (tile.getAttribute("data-badge-added") === "true") return;
 
-    const bonusContainer = triggered[0].childNodes?.[0]?.childNodes?.[2]?.childNodes?.[0]
-    const item_name = triggered[0]?.querySelector('[class*="name___"]')?.textContent
-    const primary = bonusContainer?.childNodes?.[1]?.childNodes?.[0]
-    if (!primary) return
+  const bonusContainer =
+    triggered[0].childNodes?.[0]?.childNodes?.[2]?.childNodes?.[0];
+  const item_name =
+    triggered[0]?.querySelector('[class*="name___"]')?.textContent;
+  const primaryNode = bonusContainer?.childNodes?.[1]?.childNodes?.[0];
+  if (!primaryNode) return;
 
-    const leftColumn = bonusContainer.childNodes?.[0]
-    if (!leftColumn) return
+  const leftColumn = bonusContainer.childNodes?.[0];
+  if (!leftColumn) return;
 
-    const appendNode = leftColumn.parentElement.parentElement.parentElement.parentElement
-    if (!appendNode) return
+  const appendNode =
+    leftColumn.parentElement.parentElement.parentElement.parentElement;
+  if (!appendNode) return;
 
-    // Clean up any old badges or containers
-    appendNode.querySelectorAll(".custom-bonus-badge, .custom-badge-wrapper").forEach((el) => el.remove())
+  appendNode
+    .querySelectorAll(".custom-bonus-badge, .custom-badge-stack")
+    .forEach((el) => el.remove());
 
-    // Create a horizontal flex row to ensure badges stay on a single line
-    const badgeRow = document.createElement("div")
-    badgeRow.className = "custom-badge-wrapper"
-    badgeRow.style.display = "flex"
-    badgeRow.style.flexDirection = "row"
-    badgeRow.style.justifyContent = "center"
-    badgeRow.style.alignItems = "center"
-    badgeRow.style.gap = "4px"
-    badgeRow.style.width = "100%"
-    badgeRow.style.paddingBottom = "4px"
-    appendNode.appendChild(badgeRow)
+  const stackWrapper = document.createElement("div");
+  stackWrapper.className = "custom-badge-stack";
+  appendNode.appendChild(stackWrapper);
 
-    const hasTwoBonuses = bonusContainer?.childNodes?.[1]?.childElementCount === 2
+  let badges = [];
 
-    const appendBadge = (node, name, desc) => {
-        const value = formatNew(desc, name)
-        const badge = createBonusBadge(value, name, item_name)
-        
-        // Dynamically scale down the badges if they have to share the line
-        if (hasTwoBonuses) {
-            badge.style.fontSize = "9px"
-            badge.style.padding = "1px 4px"
-        } else {
-            badge.style.margin = "0 auto"
-        }
-        
-        badgeRow.appendChild(badge)
+  const extractBadge = (node) => {
+    const name = node.getAttribute("data-bonus-attachment-title");
+    const desc = node.getAttribute("data-bonus-attachment-description");
+    if (!name || !desc) return null;
+    const value = formatNew(desc, name);
+    const badge = createBonusBadge(value, name, item_name);
+    badge.style.margin = "0";
+    return badge;
+  };
 
-        // Safety check to prevent horizontal overflow on exceptionally long names
-        let fontSize = parseFloat(getComputedStyle(badge).fontSize)
-        while (badge.scrollWidth > badge.clientWidth && fontSize > 7) {
-            fontSize -= 0.5
-            badge.style.fontSize = `${fontSize}px`
-        }
-    }
+  const badge1 = extractBadge(primaryNode);
+  if (badge1) badges.push(badge1);
 
-    const name1 = primary.getAttribute("data-bonus-attachment-title")
-    const desc1 = primary.getAttribute("data-bonus-attachment-description")
-    appendBadge(primary, name1, desc1)
+  const hasTwoBonuses =
+    bonusContainer?.childNodes?.[1]?.childElementCount === 2;
+  if (hasTwoBonuses) {
+    const secondaryNode = bonusContainer.childNodes[1].childNodes[1];
+    const badge2 = extractBadge(secondaryNode);
+    if (badge2) badges.push(badge2);
+  }
 
-    if (hasTwoBonuses) {
-        const secondary = bonusContainer.childNodes[1].childNodes[1]
-        const name2 = secondary.getAttribute("data-bonus-attachment-title")
-        const desc2 = secondary.getAttribute("data-bonus-attachment-description")
-        appendBadge(secondary, name2, desc2)
-    }
+  // Sort by extracted tier descending (Highest tier is assigned to primary badge)
+  badges.sort((a, b) => {
+    const tierA = parseInt(a.dataset.tier || "0", 10);
+    const tierB = parseInt(b.dataset.tier || "0", 10);
+    return tierB - tierA;
+  });
 
-    appendNode.style.display = "flex"
-    appendNode.style.flexDirection = "column"
-    appendNode.style.justifyContent = "flex-end"
-    leftColumn.classList.add("custom-itemmarket-container")
-    
-    tile.setAttribute("data-badge-added", "true")
+  if (badges.length === 1) {
+    badges[0].classList.add("primary-badge");
+    stackWrapper.appendChild(badges[0]);
+  } else if (badges.length === 2) {
+    badges[0].classList.add("primary-badge");
+    badges[1].classList.add("secondary-badge");
+
+    // Secondary appended first structurally so the DOM renders it backwards behind primary
+    stackWrapper.appendChild(badges[1]);
+    stackWrapper.appendChild(badges[0]);
+  }
+
+  appendNode.style.display = "flex";
+  appendNode.style.flexDirection = "column";
+  appendNode.style.justifyContent = "flex-end";
+  leftColumn.classList.add("custom-itemmarket-container");
+
+  tile.setAttribute("data-badge-added", "true");
 }
 
 function rerunNewItemMarket() {
@@ -1230,11 +1277,11 @@ function rerunNewItemMarket() {
         leftColumn?.parentElement?.parentElement?.parentElement?.parentElement;
       if (appendNode)
         appendNode
-          .querySelectorAll(".custom-bonus-badge")
+          .querySelectorAll(".custom-bonus-badge, .custom-badge-stack")
           .forEach((node) => node.remove());
     } catch (e) {
-      el.querySelectorAll(".custom-bonus-badge").forEach((node) =>
-        node.remove(),
+      el.querySelectorAll(".custom-bonus-badge, .custom-badge-stack").forEach(
+        (node) => node.remove(),
       );
     }
 
